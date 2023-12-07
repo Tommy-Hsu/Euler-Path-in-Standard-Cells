@@ -1,1 +1,10 @@
+
 *.pdf
+
+.vscode/
+
+testcase/
+
+testcase.tar
+
+Lab3

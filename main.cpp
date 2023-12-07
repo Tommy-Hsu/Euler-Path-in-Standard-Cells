@@ -1,5 +1,6 @@
 #include<iostream>
 #include<fstream>
+#include "src/StandardCell.h"
 using namespace std;
 
 int main(int argc, char* argv[]){
@@ -13,7 +14,8 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-    std::cout << "Hello World!" << std::endl;
+    StandardCell standardCell;
+    standardCell.parseSPICENetlist(input);
     
     return 0;   
 }
