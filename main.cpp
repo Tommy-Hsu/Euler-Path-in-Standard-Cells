@@ -16,6 +16,7 @@ int main(int argc, char* argv[]){
 
     StandardCell standardCell;
     standardCell.parseSPICENetlist(input);
-    
+    standardCell.FINFETsToGraph();
+    standardCell.generateStickDiagram();
     return 0;   
 }

@@ -8,3 +8,7 @@ testcase/
 testcase.tar
 
 Lab3
+
+*.sh
+
+*.txt
