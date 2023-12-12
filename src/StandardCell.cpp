@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -19,46 +20,85 @@ Graph::~Graph()
 {
 }
 
+void Graph::reset(){
+    this->Nodes_.clear();
+    this->SDToGate_.clear();
+    this->GateToSD_.clear();
+    this->adjMatrix.clear();
+}
+
 /* function */
-std::string Graph::startEulerian(std::unordered_map<std::string, size_t>& Nodes)
+std::string Graph::startEulerian()
 {
     // Check if all non-zero degree vertices are connected
 
     int odd = 0;
     std::string oddNodeKey;
-    for(auto& node : Nodes){
+    std::vector<std::string> oddKeys;
+    for(auto& node : this->Nodes_){
         if(node.second % 2 == 1){
             odd++;
-            oddNodeKey = node.first;
+            oddKeys.push_back(node.first);
         }
     }
+    /* 
+        decide to add "a" dummy node & "some" dummy edges 
+        guarantee connected graph (only one component)
+    */
     if (odd > 2) {
-        return ""; // 无欧拉路径或欧拉回路
+        /* add a dummy node and add dummy edges */
+        while(oddKeys.size() > 2){
+            int index1 = rand() % oddKeys.size();
+            int index2;
+            do {
+                index2 = rand() % oddKeys.size();
+            } while (index1 == index2);
+            std::string node1 = oddKeys[index1];
+            std::string node2 = oddKeys[index2];
+            std::string dummyNode = "Dummy";
+
+            /* Nodes_ */
+            this->Nodes_[dummyNode] += 2;
+            this->Nodes_[node1] += 1;
+            this->Nodes_[node2] += 1;
+            /* SDToGate_ */
+            this->SDToGate_[dummyNode][node1].push_back("Dummy");
+            this->SDToGate_[dummyNode][node2].push_back("Dummy");
+            /* GateToSD_ */
+            this->GateToSD_["Dummy"].push_back({dummyNode, node1});
+            this->GateToSD_["Dummy"].push_back({dummyNode, node2});
+            /* adjMatrix */
+            this->adjMatrix[dummyNode][node1] += 1;
+            this->adjMatrix[node1][dummyNode] += 1;
+            this->adjMatrix[dummyNode][node2] += 1;
+            this->adjMatrix[node2][dummyNode] += 1;
+            /* erase */
+            oddKeys.erase(oddKeys.begin() + index1);
+            oddKeys.erase(oddKeys.begin() + index2 - (index2 > index1 ? 1 : 0));
+        }
+        oddNodeKey = oddKeys[rand() % oddKeys.size()];
+        return oddNodeKey;
     } else if (odd == 2) {
-        return oddNodeKey; // 返回具有奇数度的顶点的键
+        oddNodeKey = oddKeys[rand() % oddKeys.size()];
+        return oddNodeKey;
     } else {
-        // 返回随机键
-        size_t index = std::rand() % Nodes.size();
-        auto it = Nodes.begin();
+        size_t index = std::rand() % this->Nodes_.size();
+        auto it = this->Nodes_.begin();
         std::advance(it, index);
         return it->first;
     }
 }
 
-std::vector<std::string> Graph::FindEulerianPath()
+std::vector<std::string> Graph::findEulerianPath()
 {
     /* 
-        assignment guarantee exit euler path 
-        by adding dummy edge (gate) to the graph
+        assignment guarantee exit an euler path 
+        by adding some dummy edge (gate) to the graph
     */
+    std::string startpoint = startEulerian();
     std::unordered_map<std::string, std::unordered_map<std::string, size_t>> temp_adjMatrix = this->adjMatrix;
     std::stack<std::string> stack;
     std::vector<std::string> path;
-    std::string startpoint = startEulerian(Nodes_);
-    if(startpoint == ""){
-        std::cout << " -------- No Eulerian Path --------\n";
-        return path;
-    }
 
     std::string cur = startpoint;
 
@@ -70,7 +110,9 @@ std::vector<std::string> Graph::FindEulerianPath()
         }
         else{
             stack.push(cur);
-            std::string next = temp_adjMatrix[cur].begin()->first;
+            auto it = temp_adjMatrix[cur].begin();
+            std::advance(it, rand() % temp_adjMatrix[cur].size());
+            std::string next = it->first;
             temp_adjMatrix[cur][next] -= 1;
             temp_adjMatrix[next][cur] -= 1;
             if(temp_adjMatrix[cur][next] == 0){
@@ -81,7 +123,6 @@ std::vector<std::string> Graph::FindEulerianPath()
         }
     }
     path.push_back(cur);
-    std::cout << " -------- Eulerian Path --------\n";
     return path;
 }
 
@@ -97,10 +138,14 @@ StandardCell::~StandardCell()
 void StandardCell::mergeIntoMos(std::vector<std::string>& mosSequence, 
                                 const std::vector<std::string>& gateSequence) {
     auto itGate = gateSequence.begin();
-    for (size_t i = 1; itGate != gateSequence.end(); ++i, ++itGate) {
+    for (size_t i = 1; itGate != gateSequence.end(); ++itGate) {
         size_t insertPos = i + (i - 1);
-        if (insertPos <= mosSequence.size()) {
+        if(mosSequence[insertPos] == "Dummy"){
+            ++i;
+        }
+        if (insertPos <= mosSequence.size() && *itGate != "Dummy") {
             mosSequence.insert(mosSequence.begin() + insertPos, *itGate);
+            ++i;
         }
     }
 }
@@ -119,7 +164,7 @@ float StandardCell::extractParameterValue(const std::string& parameter) {
     }
 }
 
-std::vector<std::string> StandardCell::FindGateSequence(std::unordered_map<std::string, 
+std::vector<std::string> StandardCell::findGateSequence(std::unordered_map<std::string, 
                                                     std::unordered_map<std::string, std::vector<std::string>>> SDToGate, 
                                                     const std::vector<std::string>& path){
     
@@ -138,17 +183,16 @@ std::vector<std::string> StandardCell::FindGateSequence(std::unordered_map<std::
         }
 
         // 使用 currentNode 和 nextNode
-        if(SDToGate[currentNode][nextNode].size() > 0 ){
-            gateSequence.push_back(SDToGate[currentNode][nextNode][0]);
-            SDToGate[currentNode][nextNode].erase(SDToGate[currentNode][nextNode].begin());
-        }
-        else if( SDToGate[nextNode][currentNode].size() > 0 ){
-            gateSequence.push_back(SDToGate[nextNode][currentNode][0]);
-            SDToGate[nextNode][currentNode].erase(SDToGate[nextNode][currentNode].begin());
+        if (SDToGate[currentNode][nextNode].size() > 0) {
+            int randomIndex = rand() % SDToGate[currentNode][nextNode].size();
+            gateSequence.push_back(SDToGate[currentNode][nextNode][randomIndex]);
+            SDToGate[currentNode][nextNode].erase(SDToGate[currentNode][nextNode].begin() + randomIndex);
+        } else if (SDToGate[nextNode][currentNode].size() > 0) {
+            int randomIndex = rand() % SDToGate[nextNode][currentNode].size();
+            gateSequence.push_back(SDToGate[nextNode][currentNode][randomIndex]);
+            SDToGate[nextNode][currentNode].erase(SDToGate[nextNode][currentNode].begin() + randomIndex);
         }
     }
-
-    std::cout << " -------- Find Gate Sequence --------\n";
     return gateSequence;
 }
 
@@ -185,7 +229,7 @@ int isEulerian(const std::unordered_map<std::string, size_t>& Nodes){
     }
 }
 
-std::vector<std::string> StandardCell::FindMosSequence(std::unordered_map<std::string, std::vector<std::array<std::string, 2>>> GateToSD, 
+std::vector<std::string> StandardCell::findMosSequence(std::unordered_map<std::string, std::vector<std::array<std::string, 2>>> GateToSD, 
                                                     const std::vector<std::string>& gateSequence, 
                                                     const std::unordered_map<std::string, size_t>& Nodes){
 
@@ -195,16 +239,16 @@ std::vector<std::string> StandardCell::FindMosSequence(std::unordered_map<std::s
     /* check start and end point */
     std::string startgate = gateSequence.front();
     std::string endgate = gateSequence.back();
-    std::string startnode;
-    std::string endnode;
+    std::string startnode = "";
+    std::string endnode = "";
     if(eulerian == 2){
         /* start and end point are the different */
         for(auto& node : Nodes){
             if(node.second % 2 == 1){
-                if(containsString(GateToSD, startgate, node.first)){
+                if(startnode.empty() && containsString(GateToSD, startgate, node.first)){
                     startnode = node.first;
                 }
-                else if(containsString(GateToSD, endgate, node.first)){
+                else if(endnode.empty() && containsString(GateToSD, endgate, node.first)){
                     endnode = node.first;
                 }
             }
@@ -223,20 +267,20 @@ std::vector<std::string> StandardCell::FindMosSequence(std::unordered_map<std::s
 
     /* check continuity */
     std::string curnode = startnode;
-    std::string gate;
-    for(auto it = gateSequence.begin(); it != gateSequence.end(); ++it){
-        gate = *it;
+    for(auto& gate : gateSequence){
         // auto nextgateIt = std::next(it);
         if(containsString(GateToSD, gate, curnode)){
             /* find next node */
             mosSequence.push_back(curnode);
-            for(auto& node : GateToSD[gate]){
-                if(node[0] == curnode){
-                    curnode = node[1];
+            for(auto it = GateToSD[gate].begin(); it != GateToSD[gate].end(); ++it){
+                if((*it)[0] == curnode){
+                    curnode = (*it)[1];
+                    GateToSD[gate].erase(it);
                     break;
                 }
-                else if(node[1] == curnode){
-                    curnode = node[0];
+                else if((*it)[1] == curnode){
+                    curnode = (*it)[0];
+                    GateToSD[gate].erase(it);
                     break;
                 }
             }
@@ -250,6 +294,59 @@ std::vector<std::string> StandardCell::FindMosSequence(std::unordered_map<std::s
     mosSequence.push_back(curnode);
     std::cout << " -------- Find Mos Sequence --------\n";
     return mosSequence;
+}
+
+std::vector<std::string> StandardCell::SequenceToFINFETs(std::vector<SPICE_FINFET> FINFETs, 
+                                                        const std::vector<std::string>& sequence,
+                                                        const std::string& type){
+    std::vector<std::string> mosFINFETs;
+    std::string targetType = type;
+    std::cout << " -------- Find " << targetType << " --------\n";
+    for (size_t i = 1; i < sequence.size() - 1; i+=2) {
+        const std::string& left = sequence[i - 1];
+        const std::string& gate = sequence[i];
+        const std::string& right = sequence[i + 1];
+        if( gate == "Dummy"){
+            mosFINFETs.push_back("Dummy");
+            continue;
+        }
+
+        auto it = FINFETs.begin();
+        while (it != FINFETs.end()) {
+            if (it->gate == gate && it->source == left && it->drain == right && it->type == targetType) {
+                mosFINFETs.push_back(it->name.substr(1));
+                it = FINFETs.erase(it); // 删除元素并更新迭代器
+            } else if (it->gate == gate && it->source == right && it->drain == left && it->type == targetType) {
+                mosFINFETs.push_back(it->name.substr(1));
+                it = FINFETs.erase(it); // 删除元素并更新迭代器
+            }else {
+                ++it;
+            }
+        }
+    }
+    return mosFINFETs;
+}
+
+bool StandardCell::alignSequences(std::vector<std::string>& vec1, std::vector<std::string>& vec2) {
+    size_t index1 = 0, index2 = 0;
+    while (index1 < vec1.size() && index2 < vec2.size()) {
+        if (vec1[index1] == "Dummy" && vec2[index2] != "Dummy") {
+            vec2.insert(vec2.begin() + index2, "Dummy");
+            vec2.insert(vec2.begin() + index2 + 1, "Dummy");
+        } else if (vec2[index2] == "Dummy" && vec1[index1] != "Dummy") {
+            vec1.insert(vec1.begin() + index1, "Dummy");
+            vec1.insert(vec1.begin() + index1 + 1, "Dummy");
+        } else if (vec1[index1] != vec2[index2]){
+            return false;
+        }
+        
+        // 確保只有當沒有插入 "Dummy" 時，索引才增加
+        if (vec1[index1] == vec2[index2]) {
+            index1++;
+            index2++;
+        }
+    }
+    return true;
 }
 
 /* workflow */
@@ -271,7 +368,7 @@ void StandardCell::parseSPICENetlist(std::ifstream& input){
         FINFET.width = extractParameterValue(FIN_width);
         FINFET.length = extractParameterValue(FIN_length);
         FINFET.numFin = static_cast<size_t>(extractParameterValue(FIN_numFin));   
-        FINFETs.push_back(FINFET);
+        FINFETs_.push_back(FINFET);
     }
     
     input.close();
@@ -280,51 +377,134 @@ void StandardCell::parseSPICENetlist(std::ifstream& input){
 }
 
 void StandardCell::FINFETsToGraph(){
+    nmosGraph.reset();
+    pmosGraph.reset();
     /* count outgoing & incoming */
-    for(size_t i = 0; i < FINFETs.size(); i++){
+    for(size_t i = 0; i < FINFETs_.size(); i++){
         
-        if(FINFETs[i].type == "nmos_rvt"){
+        if(FINFETs_[i].type == "nmos_rvt"){
             /*  nmos, d->s */
-            nmosGraph.Nodes_[FINFETs[i].source] += 1;
-            nmosGraph.Nodes_[FINFETs[i].drain] += 1;
+            nmosGraph.Nodes_[FINFETs_[i].source] += 1;
+            nmosGraph.Nodes_[FINFETs_[i].drain] += 1;
 
-            nmosGraph.SDToGate_[FINFETs[i].source][FINFETs[i].drain].push_back(FINFETs[i].gate);
+            nmosGraph.SDToGate_[FINFETs_[i].source][FINFETs_[i].drain].push_back(FINFETs_[i].gate);
 
-            nmosGraph.GateToSD_[FINFETs[i].gate].push_back({FINFETs[i].source, FINFETs[i].drain});
+            nmosGraph.GateToSD_[FINFETs_[i].gate].push_back({FINFETs_[i].source, FINFETs_[i].drain});
 
-            nmosGraph.adjMatrix[FINFETs[i].source][FINFETs[i].drain] += 1;
-            nmosGraph.adjMatrix[FINFETs[i].drain][FINFETs[i].source] += 1;
+            nmosGraph.adjMatrix[FINFETs_[i].source][FINFETs_[i].drain] += 1;
+            nmosGraph.adjMatrix[FINFETs_[i].drain][FINFETs_[i].source] += 1;
         }
-        else if(FINFETs[i].type == "pmos_rvt"){
+        else if(FINFETs_[i].type == "pmos_rvt"){
             /* pmos, s->d */
-            pmosGraph.Nodes_[FINFETs[i].source] += 1;
-            pmosGraph.Nodes_[FINFETs[i].drain] += 1;
+            pmosGraph.Nodes_[FINFETs_[i].source] += 1;
+            pmosGraph.Nodes_[FINFETs_[i].drain] += 1;
 
-            pmosGraph.SDToGate_[FINFETs[i].source][FINFETs[i].drain].push_back(FINFETs[i].gate);
+            pmosGraph.SDToGate_[FINFETs_[i].source][FINFETs_[i].drain].push_back(FINFETs_[i].gate);
 
-            pmosGraph.GateToSD_[FINFETs[i].gate].push_back({FINFETs[i].source, FINFETs[i].drain});
+            pmosGraph.GateToSD_[FINFETs_[i].gate].push_back({FINFETs_[i].source, FINFETs_[i].drain});
 
-            pmosGraph.adjMatrix[FINFETs[i].source][FINFETs[i].drain] += 1;
-            pmosGraph.adjMatrix[FINFETs[i].drain][FINFETs[i].source] += 1;
+            pmosGraph.adjMatrix[FINFETs_[i].source][FINFETs_[i].drain] += 1;
+            pmosGraph.adjMatrix[FINFETs_[i].drain][FINFETs_[i].source] += 1;
         }
+        IOs_.insert(FINFETs_[i].source);
+        IOs_.insert(FINFETs_[i].drain);
     }
-    std::cout << " -------- Graph Done --------\n";
 }
 
-void StandardCell::generateStickDiagram(){
+bool StandardCell::generateStickDiagram(){
 
-    pmosSequence_ = pmosGraph.FindEulerianPath();
-    gateSequence_ = FindGateSequence(pmosGraph.SDToGate_, pmosSequence_);
-    nmosSequence_ = FindMosSequence(nmosGraph.GateToSD_, gateSequence_, nmosGraph.Nodes_);
-    mergeIntoMos(pmosSequence_, gateSequence_);
+    NmosSequence_ = nmosGraph.findEulerianPath();
+    NmosGateSequence_ = findGateSequence(nmosGraph.SDToGate_, NmosSequence_);
+    PmosSequence_ = pmosGraph.findEulerianPath();
+    PmosGateSequence_ = findGateSequence(pmosGraph.SDToGate_, PmosSequence_);
+    // PmosSequence_ = FindMosSequence(pmosGraph.GateToSD_, gateSequence_, pmosGraph.Nodes_);
+    
+    return alignSequences(NmosGateSequence_, PmosGateSequence_);
+}
 
-    // nmosSequence_ = nmosGraph.FindEulerianPath();
-    // gateSequence_ = FindGateSequence(nmosGraph.SDToGate_, nmosSequence_);
-    // pmosSequence_ = FindMosSequence(pmosGraph.GateToSD_, gateSequence_, pmosGraph.Nodes_);
-    // mergeIntoMos(nmosSequence_, gateSequence_);
+void StandardCell::SequenceToPins(){
 
-    if(nmosSequence_.size() != 0 && pmosSequence_.size() != 0)
-        std::cout << " -------- Stick Diagram Done --------\n";
-    else
-        std::cout << " -------- Stick Diagram Fail --------\n";
+    mergeIntoMos(NmosSequence_, NmosGateSequence_);
+    mergeIntoMos(PmosSequence_, PmosGateSequence_);
+    pmosFINFETs_ = SequenceToFINFETs(FINFETs_, PmosSequence_, "pmos_rvt");
+    nmosFINFETs_ = SequenceToFINFETs(FINFETs_, NmosSequence_, "nmos_rvt");
+}
+
+void StandardCell::calculateHPWL(){
+    HPWL_ = 0.f;
+    /* Height */
+    float rowgap = 27.f;
+    float pmosHeight = 0.f;
+    float nmosHeight = 0.f;
+    for(auto& FIN : FINFETs_){
+        if(FIN.type == "pmos_rvt"){
+            pmosHeight = FIN.width;
+        }
+        else if(FIN.type == "nmos_rvt"){
+            nmosHeight = FIN.width;
+        }
+    }
+    /* Width */
+    float gateWidth = 20.f;
+    float srctgtWidth = 25.f;
+    float midWidth = 34.f;
+    /* Calculate */
+    for(auto& IO : IOs_){
+        /* x */
+        float x = 0.f;
+        size_t startIndex = 0;
+        size_t endIndex = 0;
+        for(size_t i = 0; i < PmosSequence_.size(); i++){
+            if(PmosSequence_[i] == IO || NmosSequence_[i] == IO){
+                startIndex = i;
+                break;
+            }
+        }
+        for(size_t i = PmosSequence_.size() - 1; i >= 0; i--){
+            if(PmosSequence_[i] == IO || NmosSequence_[i] == IO){
+                endIndex = i;
+                break;
+            }
+        }
+
+        if( startIndex == endIndex)
+            x = 0.f;
+        else{
+            for(size_t i = startIndex+1; i < endIndex; i++){
+                if(i%2 == 1)
+                    x += gateWidth;
+                else
+                    x += midWidth;
+            }
+            x += (startIndex == 0) ? (srctgtWidth/2.0) : (midWidth/2.0);
+            x += (endIndex == PmosSequence_.size() - 1) ? (srctgtWidth/2.0) : (midWidth/2.0);
+        }
+        /* y */
+        float y = (std::find(PmosSequence_.begin(), PmosSequence_.end(), IO) != PmosSequence_.end() &&
+                std::find(NmosSequence_.begin(), NmosSequence_.end(), IO) != NmosSequence_.end()) ? (pmosHeight/2.0 + rowgap + nmosHeight/2.0): 0.f;
+        HPWL_ += (x + y);
+    }
+    std::cout << " -------- Calculate HPWL --------\n";
+}
+
+void StandardCell::outputResult(std::ofstream& output){
+    
+    output << HPWL_ << std::endl;
+    for (auto& FINFET : pmosFINFETs_) {
+        output << FINFET << " ";
+    }output << std::endl;
+    for (auto pmos : PmosSequence_)
+    {
+        output << pmos << " ";
+    }output << std::endl;
+    for (auto& FINFET : nmosFINFETs_) {
+        output << FINFET << " ";
+    }output << std::endl;
+    for (auto nmos : NmosSequence_)
+    {
+        output << nmos << " ";
+    }
+
+    output.close();
+    std::cout << " -------- Output Done --------\n";
 }

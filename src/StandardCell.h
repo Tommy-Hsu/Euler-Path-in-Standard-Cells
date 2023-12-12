@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <set>
 #include <unordered_map>
 #include <string>
 
@@ -31,20 +32,28 @@ public:
     ~Graph();
 
     /* function */
-    std::string startEulerian(std::unordered_map<std::string, size_t>& Nodes);
-    std::vector<std::string> FindEulerianPath();
+    void reset();
+    std::string startEulerian();
+    std::vector<std::string> findEulerianPath();
 };
 
 class StandardCell {
 public:
     /* data */
-    std::vector<SPICE_FINFET> FINFETs;
+    std::vector<SPICE_FINFET> FINFETs_;
+    std::set<std::string> IOs_;
     Graph nmosGraph;
     Graph pmosGraph;
 
-    std::vector<std::string> gateSequence_;
-    std::vector<std::string> pmosSequence_;
-    std::vector<std::string> nmosSequence_;
+    std::vector<std::string> PmosSequence_;
+    std::vector<std::string> PmosGateSequence_;
+    std::vector<std::string> NmosSequence_;
+    std::vector<std::string> NmosGateSequence_;
+
+    std::vector<std::string> pmosFINFETs_;
+    std::vector<std::string> nmosFINFETs_;
+
+    float HPWL_;
 
     /* cons & de */
     StandardCell(/* args */);
@@ -52,12 +61,18 @@ public:
 
     /* function */
     float extractParameterValue(const std::string& parameter);
-    std::vector<std::string> FindGateSequence(std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> SDToGate, const std::vector<std::string>& path);
-    std::vector<std::string> FindMosSequence(std::unordered_map<std::string, std::vector<std::array<std::string, 2>>> GateToSD, const std::vector<std::string>& gateSequence, const std::unordered_map<std::string, size_t>& Nodes);
+    std::vector<std::string> findGateSequence(std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> SDToGate, const std::vector<std::string>& path);
+    std::vector<std::string> findMosSequence(std::unordered_map<std::string, std::vector<std::array<std::string, 2>>> GateToSD, const std::vector<std::string>& gateSequence, const std::unordered_map<std::string, size_t>& Nodes);
     void mergeIntoMos(std::vector<std::string>& mosSequence, const std::vector<std::string>& gateSequence);
+    std::vector<std::string> SequenceToFINFETs(std::vector<SPICE_FINFET> FINFETs, const std::vector<std::string>& sequence, const std::string& type);
+    bool alignSequences(std::vector<std::string>& seq1, std::vector<std::string>& seq2);
 
     /* workflow */
     void parseSPICENetlist(std::ifstream& input);
     void FINFETsToGraph();
-    void generateStickDiagram();
+    bool generateStickDiagram();
+    void SequenceToPins();
+    void calculateHPWL();
+
+    void outputResult(std::ofstream& output);
 };

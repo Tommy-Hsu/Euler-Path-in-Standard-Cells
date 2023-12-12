@@ -12,3 +12,9 @@ Lab3
 *.sh
 
 *.txt
+
+output*
+
+input/*
+
+*.o
