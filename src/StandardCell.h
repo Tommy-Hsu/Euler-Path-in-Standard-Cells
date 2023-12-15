@@ -50,6 +50,9 @@ public:
     std::vector<std::string> NmosSequence_;
     std::vector<std::string> NmosGateSequence_;
 
+    std::vector<std::string> PmosResult_;
+    std::vector<std::string> NmosResult_;
+
     std::vector<std::string> pmosFINFETs_;
     std::vector<std::string> nmosFINFETs_;
 
@@ -62,10 +65,10 @@ public:
     /* function */
     float extractParameterValue(const std::string& parameter);
     std::vector<std::string> findGateSequence(std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> SDToGate, const std::vector<std::string>& path);
-    std::vector<std::string> findMosSequence(std::unordered_map<std::string, std::vector<std::array<std::string, 2>>> GateToSD, const std::vector<std::string>& gateSequence, const std::unordered_map<std::string, size_t>& Nodes);
-    void mergeIntoMos(std::vector<std::string>& mosSequence, const std::vector<std::string>& gateSequence);
+    std::vector<std::string> findMosSequence(std::unordered_map<std::string, std::vector<std::array<std::string, 2>>> GateToSD, std::vector<std::string>& gateSequence, const std::unordered_map<std::string, size_t>& Nodes);
+    std::vector<std::string> mergeIntoMos(const std::vector<std::string>& mosSequence, const std::vector<std::string>& gateSequence);
     std::vector<std::string> SequenceToFINFETs(std::vector<SPICE_FINFET> FINFETs, const std::vector<std::string>& sequence, const std::string& type);
-    bool alignSequences(std::vector<std::string>& seq1, std::vector<std::string>& seq2);
+    bool alignSequences(std::vector<std::string>& vec1, std::vector<std::string>& vec2);
 
     /* workflow */
     void parseSPICENetlist(std::ifstream& input);
