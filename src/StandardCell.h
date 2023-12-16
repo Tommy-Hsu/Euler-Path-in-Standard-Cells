@@ -4,6 +4,10 @@
 #include <unordered_map>
 #include <string>
 
+void outputResult(std::ofstream& output, float MinHPWL, 
+                    std::vector<std::string> MinPmosResult_, std::vector<std::string> MinNmosResult_,
+                    std::vector<std::string> MinPmosFINFETs_, std::vector<std::string> MinNmosFINFETs_);
+
 struct SPICE_FINFET
 {
     std::string name;
@@ -53,8 +57,8 @@ public:
     std::vector<std::string> PmosResult_;
     std::vector<std::string> NmosResult_;
 
-    std::vector<std::string> pmosFINFETs_;
-    std::vector<std::string> nmosFINFETs_;
+    std::vector<std::string> PmosFINFETs_;
+    std::vector<std::string> NmosFINFETs_;
 
     float HPWL_;
 
@@ -68,14 +72,12 @@ public:
     std::vector<std::string> findMosSequence(std::unordered_map<std::string, std::vector<std::array<std::string, 2>>> GateToSD, std::vector<std::string>& gateSequence, const std::unordered_map<std::string, size_t>& Nodes);
     std::vector<std::string> mergeIntoMos(const std::vector<std::string>& mosSequence, const std::vector<std::string>& gateSequence);
     std::vector<std::string> SequenceToFINFETs(std::vector<SPICE_FINFET> FINFETs, const std::vector<std::string>& sequence, const std::string& type);
-    bool alignSequences(std::vector<std::string>& vec1, std::vector<std::string>& vec2);
+    void alignSequences(std::vector<std::string>& vec1, std::vector<std::string>& vec2);
 
     /* workflow */
     void parseSPICENetlist(std::ifstream& input);
     void FINFETsToGraph();
-    bool generateStickDiagram();
+    void generateStickDiagram();
     void SequenceToPins();
     void calculateHPWL();
-
-    void outputResult(std::ofstream& output);
 };

@@ -260,17 +260,21 @@ std::string findNextNodeinPairGate(std::string firstgate, std::string secondgate
             startleftnode = (*chosenIt)[(*chosenIt)[0] == startmiddlenode ? 1 : 0];
             GateToSD.at(firstgate).erase(chosenIt);
             candidateIterators.clear();
+            mosSequence.push_back(startleftnode);
+            mosSequence.push_back(startmiddlenode);
 
             for(auto it = GateToSD.at(secondgate).begin(); it != GateToSD.at(secondgate).end(); ++it){
                 if((*it)[0] == startmiddlenode || (*it)[1] == startmiddlenode)
                     candidateIterators.push_back(it);
             }
+            if(candidateIterators.size() == 0){
+                startrightnode = "Dummy";
+                break;
+            }
             randomIndex = std::rand() % candidateIterators.size();
             chosenIt = candidateIterators[randomIndex];
             startrightnode = (*chosenIt)[(*chosenIt)[0] == startmiddlenode ? 1 : 0];
             GateToSD.at(secondgate).erase(chosenIt);
-            mosSequence.push_back(startleftnode);
-            mosSequence.push_back(startmiddlenode);
             break;
         }
     }
@@ -343,7 +347,7 @@ std::vector<std::string> StandardCell::findMosSequence(std::unordered_map<std::s
     }
     if(curnode != "Dummy")
         mosSequence.push_back(curnode);
-    std::cout << " -------- Find Mos Sequence --------\n";
+    // std::cout << " -------- Find Mos Sequence --------\n";
     return mosSequence;
 }
 
@@ -352,7 +356,7 @@ std::vector<std::string> StandardCell::SequenceToFINFETs(std::vector<SPICE_FINFE
                                                         const std::string& type){
     std::vector<std::string> mosFINFETs;
     std::string targetType = type;
-    std::cout << " -------- Find " << targetType << " --------\n";
+    // std::cout << " -------- Find " << targetType << " --------\n";
     for (size_t i = 1; i < sequence.size() - 1; i+=2) {
         const std::string& left = sequence[i - 1];
         const std::string& gate = sequence[i];
@@ -378,7 +382,7 @@ std::vector<std::string> StandardCell::SequenceToFINFETs(std::vector<SPICE_FINFE
     return mosFINFETs;
 }
 
-bool StandardCell::alignSequences(std::vector<std::string>& vec1, std::vector<std::string>& vec2) {
+void StandardCell::alignSequences(std::vector<std::string>& vec1, std::vector<std::string>& vec2) {
     size_t index1 = 0, index2 = 0;
     while(index1 < vec1.size() && index2 < vec2.size()){
         if(vec1[index1] == "Dummy" && vec2[index2] != "Dummy"){
@@ -394,7 +398,6 @@ bool StandardCell::alignSequences(std::vector<std::string>& vec1, std::vector<st
             index2++;
         }
     }
-    return true;
 }
 
 /* workflow */
@@ -459,7 +462,7 @@ void StandardCell::FINFETsToGraph(){
     }
 }
 
-bool StandardCell::generateStickDiagram(){
+void StandardCell::generateStickDiagram(){
 
     NmosSequence_ = nmosGraph.findEulerianPath();
     NmosGateSequence_ = findGateSequence(nmosGraph.SDToGate_, NmosSequence_);
@@ -469,14 +472,12 @@ bool StandardCell::generateStickDiagram(){
     NmosResult_ = mergeIntoMos(NmosSequence_, NmosGateSequence_);
     PmosResult_ = mergeIntoMos(PmosSequence_, PmosGateSequence_);
     alignSequences(NmosResult_, PmosResult_);
-
-    return (NmosResult_.size() == PmosResult_.size());
 }
 
 void StandardCell::SequenceToPins(){
 
-    pmosFINFETs_ = SequenceToFINFETs(FINFETs_, PmosResult_, "pmos_rvt");
-    nmosFINFETs_ = SequenceToFINFETs(FINFETs_, NmosResult_, "nmos_rvt");
+    PmosFINFETs_ = SequenceToFINFETs(FINFETs_, PmosResult_, "pmos_rvt");
+    NmosFINFETs_ = SequenceToFINFETs(FINFETs_, NmosResult_, "nmos_rvt");
 }
 
 void StandardCell::calculateHPWL(){
@@ -497,12 +498,14 @@ void StandardCell::calculateHPWL(){
     float gateWidth = 20.f;
     float srctgtWidth = 25.f;
     float midWidth = 34.f;
+    float dummyWidth = 74.f;
     /* Calculate */
     for(auto& IO : IOs_){
+        // std::cout << "\n" << IO << std::endl;
         /* x */
         float x = 0.f;
-        size_t startIndex = 0;
-        size_t endIndex = 0;
+        size_t startIndex = -1;
+        size_t endIndex = -1;
         for(size_t i = 0; i < PmosResult_.size(); i++){
             if((PmosResult_[i] == IO || NmosResult_[i] == IO) && i%2 == 0){
                 startIndex = i;
@@ -515,45 +518,70 @@ void StandardCell::calculateHPWL(){
                 break;
             }
         }
-
+        // std::cout << startIndex << " " << endIndex << std::endl;
         if( startIndex == endIndex)
             x = 0.f;
         else{
             for(size_t i = startIndex+1; i < endIndex; i++){
-                if(i%2 == 1)
-                    x += gateWidth;
-                else
+                if(i%2 == 1){
+                    float temp = (PmosResult_[i] == "Dummy")?dummyWidth:gateWidth;
+                    x += (PmosResult_[i] == "Dummy")?dummyWidth:gateWidth;
+                    // std::cout << temp << " ";
+                }
+                else{
                     x += midWidth;
+                    // std::cout << midWidth << " ";
+                }
             }
+            // std::cout << std::endl;
+            float temp2 = (startIndex == 0) ? (srctgtWidth/2.0) : (midWidth/2.0);
+            float temp3 = (endIndex == PmosResult_.size() - 1) ? (srctgtWidth/2.0) : (midWidth/2.0);
             x += (startIndex == 0) ? (srctgtWidth/2.0) : (midWidth/2.0);
             x += (endIndex == PmosResult_.size() - 1) ? (srctgtWidth/2.0) : (midWidth/2.0);
+            // std::cout << temp2 << " " << temp3 << std::endl;
         }
+        // std::cout << "x: " << x << std::endl;
+
         /* y */
-        auto it = std::find(PmosResult_.begin(), PmosResult_.end(), IO);
-        bool isInPmos = (it != PmosResult_.end());
-        bool isInNmos = (std::find(NmosResult_.begin(), NmosResult_.end(), IO) != NmosResult_.end());
-        bool isEvenIndexInPmos = isInPmos && (std::distance(PmosResult_.begin(), it) % 2 == 0);
-        float y = (isInPmos && isInNmos && isEvenIndexInPmos) ? (pmosHeight/2.0 + rowgap + nmosHeight/2.0) : 0.f;
-        
+        bool isInPmos = false;
+        for (size_t i = 0; i < PmosResult_.size(); i++) {
+            if (PmosResult_[i] == IO && i % 2 == 0) {
+                isInPmos = true;
+                break; // 找到符合条件的元素后就退出循环
+            }
+        }
+        bool isInNmos = false;
+        for (size_t i = 0; i < NmosResult_.size(); i++) {
+            if (NmosResult_[i] == IO && i % 2 == 0) {
+                isInNmos = true;
+                break; // 找到符合条件的元素后就退出循环
+            }
+        }
+        float y = (isInPmos && isInNmos) ? (pmosHeight/2.0 + rowgap + nmosHeight/2.0) : 0.f;
+        // std::cout << "y: " << y << std::endl;
+        // std::cout << "x + y: " << x + y << std::endl;
         HPWL_ += (x + y);
     }
-    std::cout << " -------- Calculate HPWL --------\n";
+
+    // std::cout << " -------- Calculate HPWL --------\n";
 }
 
-void StandardCell::outputResult(std::ofstream& output){
+void outputResult(std::ofstream& output, float MinHPWL, 
+                    std::vector<std::string> MinPmosResult_, std::vector<std::string> MinNmosResult_,
+                    std::vector<std::string> MinPmosFINFETs_, std::vector<std::string> MinNmosFINFETs_){
     
-    output << HPWL_ << std::endl;
-    for (auto& FINFET : pmosFINFETs_) {
+    output << MinHPWL << std::endl;
+    for (auto& FINFET : MinPmosFINFETs_) {
         output << FINFET << " ";
     }output << std::endl;
-    for (auto pmos : PmosResult_)
+    for (auto pmos : MinPmosResult_)
     {
         output << pmos << " ";
     }output << std::endl;
-    for (auto& FINFET : nmosFINFETs_) {
+    for (auto& FINFET : MinNmosFINFETs_) {
         output << FINFET << " ";
     }output << std::endl;
-    for (auto nmos : NmosResult_)
+    for (auto nmos : MinNmosResult_)
     {
         output << nmos << " ";
     }

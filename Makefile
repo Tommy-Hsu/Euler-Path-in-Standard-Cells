@@ -1,6 +1,6 @@
 CXX = g++
 # CXXFLAGS = -std=c++11 -g -O3 -pthread
-CXXFLAGS = -std=c++11 -g
+CXXFLAGS = -std=c++11 -g -O3
 TARGET = Lab3
 SRCDIR = src
 OBJS = main.o StandardCell.o # Add your other object files here
